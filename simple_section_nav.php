@@ -27,7 +27,7 @@
 class SimpleSectionNav extends WP_Widget
 {
 	function __construct() {
-		$widget_ops = array('classname' => 'simple-section-nav', 'description' => __( "Shows page ancestory (parents, grandparents, etc), siblings of ancestory and current page, and immediate children of the current page beneath the current top level page.") );
+		$widget_ops = array('classname' => 'simple-section-nav', 'description' => __( "Shows page ancestry (parents, grandparents, etc), siblings of ancestry and current page, and immediate children of the current page beneath the current top level page.") );
 		parent::__construct('simple-section-nav', __('Simple Section Navigation'), $widget_ops);
 	}
 
