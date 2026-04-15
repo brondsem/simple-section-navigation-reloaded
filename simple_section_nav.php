@@ -26,51 +26,63 @@
 
 class SimpleSectionNav extends WP_Widget
 {
-	function SimpleSectionNav() {
+	function __construct() {
 		$widget_ops = array('classname' => 'simple-section-nav', 'description' => __( "Shows page ancestory (parents, grandparents, etc), siblings of ancestory and current page, and immediate children of the current page beneath the current top level page.") );
-		$this->WP_Widget('simple-section-nav', __('Simple Section Navigation'), $widget_ops);
+		parent::__construct('simple-section-nav', __('Simple Section Navigation'), $widget_ops);
+	}
+
+	function SimpleSectionNav() {
+		$this->__construct();
 	}
 
     function widget($args, $instance) {
 		extract($args);
 		global $post;
+		$show_on_home = !empty($instance['show_on_home']);
+		$exclude = isset($instance['exclude']) ? $instance['exclude'] : '';
+		$hide_on_excluded = !empty($instance['hide_on_excluded']);
+		$show_all = !empty($instance['show_all']);
+		$show_empty = !empty($instance['show_empty']);
+		$sort_by = isset($instance['sort_by']) ? $instance['sort_by'] : 'menu_order';
+		$a_heading = !empty($instance['a_heading']);
+		$title = isset($instance['title']) ? $instance['title'] : '';
 		
 		if ( is_search() || is_404() ) return false; //doesn't apply to search or 404 page
-		if ( is_front_page() && !$instance['show_on_home'] ) return false;	//if we're on the front page and we haven't chosen to show this anyways, leave
+		if ( is_front_page() && !$show_on_home ) return false;	//if we're on the front page and we haven't chosen to show this anyways, leave
 		
 		if ( is_page() ) {
 			if ( isset($post) && is_object($post) ) get_post_ancestors($post);   //workaround for occassional problems
 		} else {
 			if ($post_page = get_option("page_for_posts")) $post = get_page($post_page); //treat the posts page as the current page if applicable
-			elseif ($instance['show_on_home']) $sub_front_page = true;	//if want to show on home, and home is the posts page
+			elseif ($show_on_home) $sub_front_page = true;	//if want to show on home, and home is the posts page
 			else return false;
 		}
 		
 		if ( is_front_page() || isset($sub_front_page )) {
 			echo $before_widget.$before_title.get_bloginfo('name').$after_title."<ul>";
-			$children = wp_list_pages(array( 'title_li' => '', 'depth' => 1, 'sort_column' => $instance['sort_by'], 'exclude' => $instance['exclude'], 'echo' => false ));
+			$children = wp_list_pages(array( 'title_li' => '', 'depth' => 1, 'sort_column' => $sort_by, 'exclude' => $exclude, 'echo' => false ));
 			echo apply_filters('simple_section_page_list',$children);
 			echo "</ul>".$after_widget;
 			return true; 
 	  	}
 		
-		$exclude_list = $instance['exclude'];
+		$exclude_list = $exclude;
 		$excluded = explode(',', $exclude_list); //convert list of excluded pages to array 
-		if ( in_array($post->ID,$excluded) && $instance['hide_on_excluded'] ) return false; //if on excluded page, and setup to hide on excluded pages 
+		if ( in_array($post->ID,$excluded) && $hide_on_excluded ) return false; //if on excluded page, and setup to hide on excluded pages 
 		
 		$post_ancestors = ( isset($post->ancestors) ) ? $post->ancestors : get_post_ancestors($post); //get the current page's ancestors either from existing value or by executing function
 		$top_page = $post_ancestors ? end($post_ancestors) : $post->ID; //get the top page id
 		
 		$thedepth = 0; //initialize default variables
 		
-		if( !$instance['show_all'] ) 
+		if( !$show_all ) 
 		{	
 			$ancestors_me = implode( ',', $post_ancestors ) . ',' . $post->ID;
 			
 			//exclude pages not in direct hierarchy
 			foreach ($post_ancestors as $anc_id) 
 			{
-				if ( in_array($anc_id,$excluded) && $instance['hide_on_excluded'] ) return false; //if ancestor excluded, and hide on excluded, leave
+				if ( in_array($anc_id,$excluded) && $hide_on_excluded ) return false; //if ancestor excluded, and hide on excluded, leave
 				
 				$pageset = get_pages(array( 'child_of' => $anc_id, 'parent' => $anc_id, 'exclude' => $ancestors_me ));
 				foreach ($pageset as $page) {
@@ -82,12 +94,12 @@ class SimpleSectionNav extends WP_Widget
 			$thedepth = count($post_ancestors)+1; //prevents improper grandchildren from showing
 		}		
 		
-		$children = wp_list_pages(array( 'title_li' => '', 'echo' => 0, 'depth' => $thedepth, 'child_of' => $top_page, 'sort_column' => $instance['sort_by'], 'exclude' => $exclude_list ));	//get the list of pages, including only those in our page list
-		if( !$children && !$instance['show_empty'] ) return false; 	//if there are no pages in this section, and use hasnt chosen to display widget anyways, leave the function
+		$children = wp_list_pages(array( 'title_li' => '', 'echo' => 0, 'depth' => $thedepth, 'child_of' => $top_page, 'sort_column' => $sort_by, 'exclude' => $exclude_list ));	//get the list of pages, including only those in our page list
+		if( !$children && !$show_empty ) return false; 	//if there are no pages in this section, and use hasnt chosen to display widget anyways, leave the function
 		
-		$sect_title = ( $instance['title'] ) ? apply_filters( 'the_title', $instance['title'] ) : apply_filters( 'the_title', get_the_title($top_page), $top_page );
+		$sect_title = ( $title ) ? apply_filters( 'the_title', $title ) : apply_filters( 'the_title', get_the_title($top_page), $top_page );
 		$sect_title = apply_filters( 'simple_section_nav_title', $sect_title );
-		if ($instance['a_heading']) {
+		if ($a_heading) {
 			$headclass = ( $post->ID == $top_page ) ? "current_page_item" : "current_page_ancestor";
 			if ( $post->post_parent == $top_page ) $headclass .= " current_page_parent";
 			$sect_title = '<a href="' . get_page_link($top_page) . '" id="toppage-' . $top_page . '" class="' . $headclass . '">' . $sect_title . '</a>';	
@@ -100,14 +112,14 @@ class SimpleSectionNav extends WP_Widget
 
 	function update($new_instance, $old_instance) {
 		$instance = $old_instance;
-		$instance['title'] = trim( strip_tags( $new_instance['title'] ) );
-		$instance['show_all'] = ( $new_instance['show_all'] ) ? true : false;
-		$instance['exclude'] = str_replace( " ", "", strip_tags($new_instance['exclude']) ); //remove spaces from list
-		$instance['hide_on_excluded'] = ( $new_instance['hide_on_excluded'] ) ? true : false;
-		$instance['show_on_home'] = ( $new_instance['show_on_home'] ) ? true : false;
-		$instance['show_empty'] = ( $new_instance['show_empty'] ) ? true : false;
-		$instance['sort_by'] = ( in_array( $new_instance['sort_by'], array( 'post_title', 'menu_order', 'ID' ) ) ) ? $new_instance['sort_by'] : 'menu_order';
-		$instance['a_heading'] = ( $new_instance['a_heading'] ) ? true : false;
+		$instance['title'] = isset($new_instance['title']) ? trim( strip_tags( $new_instance['title'] ) ) : '';
+		$instance['show_all'] = !empty($new_instance['show_all']);
+		$instance['exclude'] = isset($new_instance['exclude']) ? str_replace( " ", "", strip_tags($new_instance['exclude']) ) : ''; //remove spaces from list
+		$instance['hide_on_excluded'] = !empty($new_instance['hide_on_excluded']);
+		$instance['show_on_home'] = !empty($new_instance['show_on_home']);
+		$instance['show_empty'] = !empty($new_instance['show_empty']);
+		$instance['sort_by'] = ( isset($new_instance['sort_by']) && in_array( $new_instance['sort_by'], array( 'post_title', 'menu_order', 'ID' ) ) ) ? $new_instance['sort_by'] : 'menu_order';
+		$instance['a_heading'] = !empty($new_instance['a_heading']);
 		return $instance;
 	}
 
@@ -150,7 +162,9 @@ class SimpleSectionNav extends WP_Widget
 	}
 }
 
-add_action('widgets_init', create_function('', 'return register_widget("SimpleSectionNav");'));
+add_action('widgets_init', function () {
+	register_widget('SimpleSectionNav');
+});
 
 /**
  * Display section based navigation
